@@ -87,6 +87,7 @@ struct dir_watch_media_source {
 	char *delete_file;
 	enum sort_by sort_by;
 	time_t time;
+	time_t file_mtime;
 	bool hotkeys_added;
 	long long scan_interval;
 	float duration;
@@ -108,6 +109,7 @@ static void dir_watch_media_source_update(void *data, obs_data_t *settings)
 		if (context->directory)
 			bfree(context->directory);
 		context->directory = bstrdup(dir);
+		context->time = 0;
 	}
 	const enum sort_by sort_by = obs_data_get_int(settings, S_SORT_BY);
 	if (sort_by != context->sort_by) {
@@ -600,20 +602,32 @@ static void dir_watch_media_source_tick(void *data, float seconds)
 		bfree(context->file);
 		context->file = bstrdup("");
 	} else {
-		if (context->file &&
-		    strcmp(context->file, selected_path.array) == 0) {
-			dstr_free(&selected_path);
-
-			return;
-		}
-		FILE *f = os_fopen(selected_path.array, "rb+");
+		FILE *f = os_fopen(selected_path.array, "rb");
 		if (!f) {
 			dstr_free(&selected_path);
 			return;
 		}
 		fclose(f);
+
+		/* Check if file has been modified since we last set it.
+		 * This handles the case where an MP4 is still being
+		 * written (no moov atom yet) when first detected — once
+		 * the writer finalizes the file, the mtime changes and
+		 * we re-update the parent source. */
+		struct stat file_stats;
+		time_t current_mtime = 0;
+		if (os_stat(selected_path.array, &file_stats) == 0)
+			current_mtime = file_stats.st_mtime;
+
+		if (context->file &&
+		    strcmp(context->file, selected_path.array) == 0 &&
+		    current_mtime == context->file_mtime) {
+			dstr_free(&selected_path);
+			return;
+		}
 		bfree(context->file);
 		context->file = bstrdup(selected_path.array);
+		context->file_mtime = current_mtime;
 	}
 	dstr_free(&selected_path);
 	const char *id = obs_source_get_unversioned_id(parent);

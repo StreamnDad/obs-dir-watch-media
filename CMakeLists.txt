@@ -9,7 +9,7 @@ else()
   cmake_minimum_required(VERSION 3.18)
 endif()
 
-project(dir-watch-media VERSION 0.7.0)
+project(dir-watch-media VERSION 0.7.1)
 set(PROJECT_FULL_NAME "Directory Watch Media")
 
 # Set new UUIDs when you start to create a new plugin.
@@ -26,8 +26,46 @@ target_sources(${PROJECT_NAME} PRIVATE
 	version.h)
 
 if(BUILD_OUT_OF_TREE)
-	find_package(libobs REQUIRED)
-	include(cmake/ObsPluginHelpers.cmake)
+	find_package(libobs QUIET)
+	if(libobs_FOUND)
+		include(cmake/ObsPluginHelpers.cmake)
+	else()
+		# Local dev fallback: manual OBS_INCLUDE_DIR / OBS_LIBRARY
+		set(OBS_INCLUDE_DIR "" CACHE PATH "Path to OBS include directory containing obs-module.h")
+		set(OBS_LIBRARY "" CACHE FILEPATH "Path to libobs library file")
+		if(NOT OBS_INCLUDE_DIR OR NOT OBS_LIBRARY)
+			message(FATAL_ERROR
+				"libobs was not found via find_package. Set OBS_INCLUDE_DIR and OBS_LIBRARY.\n"
+				"Run: make find-obs-dev-paths")
+		endif()
+		# OBS headers include simde for SSE intrinsics on ARM
+		set(SIMDE_INCLUDE_DIR "" CACHE PATH "Path to simde include directory (auto-detected on macOS)")
+		if(NOT SIMDE_INCLUDE_DIR AND APPLE)
+			execute_process(
+				COMMAND brew --prefix simde
+				OUTPUT_VARIABLE _simde_prefix
+				OUTPUT_STRIP_TRAILING_WHITESPACE
+				ERROR_QUIET
+				RESULT_VARIABLE _simde_result)
+			if(_simde_result EQUAL 0 AND EXISTS "${_simde_prefix}/include")
+				set(SIMDE_INCLUDE_DIR "${_simde_prefix}/include" CACHE PATH "" FORCE)
+			endif()
+		endif()
+
+		set(_obs_interface_dirs "${OBS_INCLUDE_DIR}")
+		if(SIMDE_INCLUDE_DIR)
+			list(APPEND _obs_interface_dirs "${SIMDE_INCLUDE_DIR}")
+		endif()
+		# Fallback obsconfig.h for out-of-tree builds
+		if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/include/obsconfig.h")
+			list(APPEND _obs_interface_dirs "${CMAKE_CURRENT_SOURCE_DIR}/include")
+		endif()
+
+		add_library(OBS::libobs UNKNOWN IMPORTED)
+		set_target_properties(OBS::libobs PROPERTIES
+			IMPORTED_LOCATION "${OBS_LIBRARY}"
+			INTERFACE_INCLUDE_DIRECTORIES "${_obs_interface_dirs}")
+	endif()
 endif()
   
 if(OS_WINDOWS)
@@ -67,7 +105,9 @@ if(BUILD_OUT_OF_TREE)
         LIBRARY DESTINATION ${CMAKE_INSTALL_PREFIX}/${LIB_OUT_DIR})
     install(DIRECTORY data/locale
         DESTINATION ${CMAKE_INSTALL_PREFIX}/${DATA_OUT_DIR})
-    setup_plugin_target(${PROJECT_NAME})
+    if(COMMAND setup_plugin_target)
+        setup_plugin_target(${PROJECT_NAME})
+    endif()
 else()
     target_include_directories(${PROJECT_NAME} PRIVATE
         "${CMAKE_SOURCE_DIR}/UI/obs-frontend-api")
