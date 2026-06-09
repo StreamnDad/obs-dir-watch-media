@@ -13,6 +13,8 @@ jobs:
   macos:
     name: macOS
     runs-on: macos-12
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -28,13 +30,13 @@ jobs:
         shell: zsh {0}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4.1.1
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
         with:
           path: plugin
           submodules: recursive
 
       - name: Checkout obs-studio
-        uses: actions/checkout@v4.1.1
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
         with:
           repository: 'obsproject/obs-studio'
           path: obs-studio
@@ -78,7 +80,7 @@ jobs:
 
       - name: Restore Compilation Cache
         id: ccache-cache
-        uses: actions/cache@v4.0.0
+        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809  # v4.2.4
         with:
           path: ${{ github.workspace }}/.ccache
           key: macos-${{ matrix.arch }}-ccache-plugin-${{ steps.setup.outputs.ccacheDate }}
@@ -132,26 +134,28 @@ jobs:
           codesignPass: ${{ secrets.MACOS_NOTARIZATION_PASSWORD }}
 
       - name: Upload Build Artifact
-        uses: actions/upload-artifact@v4.3.1
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
           name: ${{ env.PLUGIN_NAME }}-macos-${{ matrix.arch }}-${{ steps.setup.outputs.commitHash }}
           path: ${{ github.workspace }}/plugin/release/${{ env.PLUGIN_NAME }}-*-macos-${{ matrix.arch }}.pkg
   linux-in-tree:
     name: 'Linux'
     runs-on: ${{ matrix.ubuntu }}
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
         ubuntu: ['ubuntu-20.04', 'ubuntu-22.04']
     steps:
       - name: Checkout
-        uses: actions/checkout@v4.1.1
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
         with:
           repository: obsproject/obs-studio
           ref: ${{ env.OBS_VERSION }}
           submodules: 'recursive'
       - name: "Checkout plugin"
-        uses: actions/checkout@v4.1.1
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
         with:
           path: plugins/${{ env.PLUGIN_NAME }}
       - name: Add plugin to obs cmake
@@ -181,13 +185,15 @@ jobs:
           mv ./plugins/${{ env.PLUGIN_NAME }}/data ./${{ env.PLUGIN_NAME }}/data
           tar -cvzf "${FILE_NAME}" ${{ env.PLUGIN_NAME }}
       - name: 'Publish'
-        uses: actions/upload-artifact@v4.3.1
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
           name: '${{ env.FILE_NAME }}'
           path: '*.tar.gz'
   windows-build:
     name: 'Windows Build'
     runs-on: [windows-latest]
+    permissions:
+      contents: read
     strategy:
       fail-fast: true
       matrix:
@@ -206,15 +212,15 @@ jobs:
       WINDOWS_DEPS_VERSION: '2022-08-02'
     steps:
       - name: Add msbuild to PATH
-        uses: microsoft/setup-msbuild@v2
+        uses: microsoft/setup-msbuild@6fb02220983dee41ce7ae257b6f4d8f9bf5ed4ce  # v2.0.0
       - name: Checkout obs
-        uses: actions/checkout@v4.1.1
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
         with:
           repository: obsproject/obs-studio
           ref: ${{ env.OBS_VERSION }}
           submodules: 'recursive'
       - name: Checkout plugin
-        uses: actions/checkout@v4.1.1
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
         with:
           path: plugins/${{ env.PLUGIN_NAME}}
       - name: Add plugin to obs cmake
@@ -251,19 +257,21 @@ jobs:
           exit 0
       - name: Publish zip
         if: success()
-        uses: actions/upload-artifact@v4.3.1
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
           name: '${{ env.FILE_NAME }}'
           path: package/*
       - name: Publish Installer Files
         if: success() && matrix.target == 'x64'
-        uses: actions/upload-artifact@v4.3.1
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
           name: 'installer-files'
           path: installer/*
   windows-package:
     name: 'Windows Package'
     runs-on: [windows-latest]
+    permissions:
+      contents: read
     needs: [windows-build]
     steps:
       - name: Init
@@ -278,23 +286,23 @@ jobs:
           $env:FILE_NAME_X64="${{ env.PLUGIN_NAME }}-${{ github.sha }}-windows-x64"
           echo "FILE_NAME_X64=${env:FILE_NAME_X64}" >> ${env:GITHUB_ENV}
       - name: Retrieve x86 build
-        uses: actions/download-artifact@v4.1.7
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
         with:
           name: '${{ env.FILE_NAME_X86 }}'
           path: ./package
       - name: Retrieve x64 build
-        uses: actions/download-artifact@v4.1.7
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
         with:
           name: '${{ env.FILE_NAME_X64 }}'
           path: ./package
       - name: Retrieve installer files
-        uses: actions/download-artifact@v4.1.7
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4.3.0
         with:
           name: 'installer-files'
           path: .
       - name: Publish zip
         if: success()
-        uses: actions/upload-artifact@v4.3.1
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
           name: '${{ env.FILE_NAME }}'
           path: package/*
@@ -307,11 +315,11 @@ jobs:
           & 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe' /Qp ".\installer.iss"
       - name: Publish installer
         if: success()
-        uses: actions/upload-artifact@v4.3.1
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
           name: '${{ env.FILE_NAME }}-installer'
           path: package/*.exe
       - name: Remove temp artifacts
-        uses: geekyeggo/delete-artifact@v4.1.0
+        uses: geekyeggo/delete-artifact@65041433121f7239077fa20be14c0690f70569de  # v4.1.0
         with:
           name: "${{ env.FILE_NAME_X86 }}\n${{ env.FILE_NAME_X64 }}"
